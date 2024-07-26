@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+string_gen = { editable = true, path = "." }
+
+[dev-packages]
+black = "==24.4.2"
+flake8 = "==7.1.0"
+pep8-naming = "==0.14.1"
+pytest = "==8.3.1"
+pytest-cov = "==5.0.0"
+flake8-annotations = "==3.0.1"
+flake8-bugbear = "==23.12.2"
+flake8-builtins = "==2.2.0"
+
+[requires]
+python_version = "3.12"
+python_full_version = "3.12.1"
+
+[scripts]
+tests = "pytest ./tests"
+black = "black --line-length=120 string_gen"
+flake = "flake8 string_gen"
