@@ -3,7 +3,11 @@ import re
 
 import pytest
 
-from string_gen import StringGen, StringGenPatternError, StringGenMaxIterationsReachedError
+from string_gen import (
+    StringGen,
+    StringGenPatternError,
+    StringGenMaxIterationsReachedError,
+)
 
 REGEX = (
     r"^\d{5}$",
@@ -20,20 +24,18 @@ REGEX = (
     r"^([A-Z][a-z]{1,15}\n){4,}[^\s]\w{1,15}\n\W{3}$",
 )
 
-NOT_SUPPORT = (
-    r"(<)?(\w+@\w+(?:\.\w+)+)(?(1)>|$)",
-)
+NOT_SUPPORT = (r"(<)?(\w+@\w+(?:\.\w+)+)(?(1)>|$)",)
 
 
 @pytest.mark.parametrize("strip", (True, False))
-@pytest.mark.parametrize('regex', REGEX)
+@pytest.mark.parametrize("regex", REGEX)
 def test_regex_render(regex, strip):
     gen = StringGen(regex.strip("^$") if strip else regex)
     value = gen.render()
     assert re.match(regex, value)
 
 
-@pytest.mark.parametrize('regex', NOT_SUPPORT)
+@pytest.mark.parametrize("regex", NOT_SUPPORT)
 def test_opcode_error(regex):
     gen = StringGen(regex)
     with pytest.raises(KeyError):
@@ -41,15 +43,15 @@ def test_opcode_error(regex):
 
 
 def test_support_pattern():
-    pattern = re.compile(r'\d')
+    pattern = re.compile(r"\d")
     gen = StringGen(pattern)
     value = gen.render()
     assert gen.pattern.match(value)
 
 
 def test_support_bytes():
-    regex = r'\d'
-    gen = StringGen(regex.encode('utf-8'))
+    regex = r"\d"
+    gen = StringGen(regex.encode("utf-8"))
     value = gen.render()
     assert re.match(regex, value)
 
@@ -59,7 +61,7 @@ def test_invalid_pattern():
         StringGen(".**")
 
 
-@pytest.mark.parametrize('regex', REGEX)
+@pytest.mark.parametrize("regex", REGEX)
 def test_render_list(regex):
     count = random.randint(1, 100)
     gen = StringGen(regex)
@@ -69,7 +71,7 @@ def test_render_list(regex):
         assert re.match(regex, value)
 
 
-@pytest.mark.parametrize('regex', REGEX)
+@pytest.mark.parametrize("regex", REGEX)
 def test_render_set(regex):
     count = random.randint(1, 5)
     gen = StringGen(regex)
@@ -86,42 +88,42 @@ def test_render_set_error():
 
 
 def test_set_seed():
-    gen = StringGen(r'\d', seed=b'12')
+    gen = StringGen(r"\d", seed=b"12")
     values = set(gen.render_list(count=10))
     assert len(values) == 8
 
 
 def test_set_seed_method():
-    gen = StringGen(r'\d')
-    gen.seed(b'12')
+    gen = StringGen(r"\d")
+    gen.seed(b"12")
     values = set(gen.render_list(count=10))
     assert len(values) == 8
 
 
-@pytest.mark.parametrize('regex', (r"\d", rb'\d'))
-@pytest.mark.parametrize('mode', ('str', 'sting_gen', 'pattern'))
+@pytest.mark.parametrize("regex", (r"\d", rb"\d"))
+@pytest.mark.parametrize("mode", ("str", "sting_gen", "pattern"))
 def test_equal(mode, regex):
     new_regex = regex
-    if mode == 'pattern':
+    if mode == "pattern":
         new_regex = re.compile(regex)
-    elif mode == 'sting_gen':
+    elif mode == "sting_gen":
         new_regex = StringGen(regex)
     assert StringGen(regex) == new_regex
 
 
 def test_equal_error():
-    gen = StringGen(r'\d')
+    gen = StringGen(r"\d")
     with pytest.raises(TypeError):
         assert gen == 1
 
 
-@pytest.mark.parametrize('regex', (r"\d", rb'\d'))
-@pytest.mark.parametrize('mode', ('str', 'sting_gen', 'pattern'))
+@pytest.mark.parametrize("regex", (r"\d", rb"\d"))
+@pytest.mark.parametrize("mode", ("str", "sting_gen", "pattern"))
 def test_not_equal(mode, regex):
     new_regex = regex
-    if mode == 'pattern':
+    if mode == "pattern":
         new_regex = re.compile(regex)
-    elif mode == 'sting_gen':
+    elif mode == "sting_gen":
         new_regex = StringGen(regex)
     assert StringGen(r"\w") != new_regex
 
@@ -135,10 +137,10 @@ def test_or():
     gen1 = StringGen(r"^\d$")
     gen2 = StringGen(r"^\w$".encode("utf-8"))
     gen1 |= gen2
-    assert re.match(r'^\d\w$', gen1.render())
+    assert re.match(r"^\d\w$", gen1.render())
 
 
-@pytest.mark.parametrize('func', (str, repr))
+@pytest.mark.parametrize("func", (str, repr))
 def test_str_repr(func):
     regex = r"^\d$"
     assert func(StringGen(regex)) == f"{StringGen.__name__}({regex!r})"

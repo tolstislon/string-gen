@@ -136,7 +136,7 @@ class StringGen:
     def __or__(self, other: "StringGen") -> "StringGen":
         base = _get_bytes(self._pattern.pattern)
         other = _get_bytes(self.__get_value(other).pattern)
-        return StringGen(base.removesuffix(b"^") + other.removeprefix(b"$"))
+        return StringGen(base.rstrip(b"^") + other.lstrip(b"$"))
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._pattern.pattern!r})"
