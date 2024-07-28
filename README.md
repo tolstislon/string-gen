@@ -1,4 +1,12 @@
-# string-gen
+# String gen
+
+[![PyPI](https://img.shields.io/pypi/v/string-gen?color=%2301a001&label=pypi&logo=version)](https://pypi.org/project/string-gen/)
+[![Downloads](https://pepy.tech/badge/string-gen)](https://pepy.tech/project/string-gen)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/string-gen.svg)](https://pypi.org/project/string-gen/)
+[![PyPI - Implementation](https://img.shields.io/pypi/implementation/string-gen)](https://github.com/tolstislon/string-gen)  
+
+[![Code style: black](https://github.com/tolstislon/string-gen/workflows/tests/badge.svg)](https://github.com/tolstislon/string-gen/actions/workflows/python-package.yml)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 String generator by regex
 
