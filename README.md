@@ -73,13 +73,13 @@ You might want to:
     pipenv install --dev
     pipenv shell
    ```
-3. Run the black
+3. Run ruff format
     ```bash
-    pipenv run black
+    pipenv run format
    ```
-4. Run the flake8
+4. Run ruff check
     ```bash
-    pipenv run flake
+    pipenv run check
    ```
 5. Run tests
    ```bash

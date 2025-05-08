@@ -1,8 +1,10 @@
+"""String generator."""
+
 import random
 import re
 import string
 from itertools import chain
-from typing import Any, Dict, Callable, Sequence, Final, Union, Set, List, AnyStr, Tuple
+from typing import Any, AnyStr, Callable, Dict, Final, List, Sequence, Set, Tuple, Union
 
 try:
     import re._parser as parse
@@ -19,14 +21,14 @@ class StringGenError(Exception):
 class StringGenPatternError(StringGenError):
     """Exception raised for errors in the input."""
 
-    def __init__(self, pattern: Union[re.Pattern, AnyStr], *args) -> None:
+    def __init__(self, pattern: Union[re.Pattern, AnyStr], *args) -> None:  # noqa: ANN002
         super().__init__(f"Invalid pattern: {pattern!r}", *args)
 
 
 class StringGenMaxIterationsReachedError(StringGenError):
-    """Max iterations reached"""
+    """Max iterations reached."""
 
-    def __init__(self, max_iterations: int, *args) -> None:
+    def __init__(self, max_iterations: int, *args) -> None:  # noqa: ANN002
         super().__init__(f"Max iterations reached: {max_iterations!r}", *args)
 
 
@@ -83,26 +85,28 @@ class _Parser:
 OpcodesDict = Dict[int, Callable[[_Parser, Any], Any]]
 
 OPCODES: Final[OpcodesDict] = {
-    parse.LITERAL: lambda p, x: chr(x),
+    parse.LITERAL: lambda _, x: chr(x),
     parse.NOT_LITERAL: lambda p, x: p.rand.choice(string.printable.replace(chr(x), "")),
-    parse.AT: lambda p, x: "",
+    parse.AT: lambda *_: "",
     parse.IN: lambda p, x: p.in_state(x),
-    parse.ANY: lambda p, x: p.rand.choice(string.printable.replace("\n", "")),
-    parse.RANGE: lambda p, x: [chr(i) for i in range(x[0], x[1] + 1)],
-    parse.CATEGORY: lambda p, x: CATEGORIES[x],
+    parse.ANY: lambda p, _: p.rand.choice(string.printable.replace("\n", "")),
+    parse.RANGE: lambda _, x: [chr(i) for i in range(x[0], x[1] + 1)],
+    parse.CATEGORY: lambda _, x: CATEGORIES[x],
     parse.BRANCH: lambda p, x: "".join(p.state(i) for i in p.rand.choice(x[1])),
     parse.SUBPATTERN: lambda p, x: p.group(x),
     parse.ASSERT: lambda p, x: "".join(p.state(i) for i in x[1]),
-    parse.ASSERT_NOT: lambda p, x: "",
+    parse.ASSERT_NOT: lambda *_: "",
     parse.GROUPREF: lambda p, x: p.cache[x],
     parse.MIN_REPEAT: lambda p, x: p.repeat(*x),
     parse.MAX_REPEAT: lambda p, x: p.repeat(*x),
-    parse.NEGATE: lambda p, x: [False],
+    parse.NEGATE: lambda *_: [False],
 }
 
 
 class StringGen:
-    __slots__ = ("_pattern", "_parser")
+    """Base class for generating strings."""
+
+    __slots__ = ("_parser", "_pattern")
 
     def __init__(self, pattern: Union[re.Pattern, AnyStr], seed: SeedType = None) -> None:
         try:
@@ -113,6 +117,7 @@ class StringGen:
 
     @property
     def pattern(self) -> re.Pattern:
+        """Return pattern."""
         return self._pattern
 
     def __get_value(self, value: Any) -> re.Pattern:
@@ -142,19 +147,19 @@ class StringGen:
         return f"{type(self).__name__}({self._pattern.pattern!r})"
 
     def seed(self, seed: SeedType = None) -> None:
-        """Initialize internal state from a seed"""
+        """Initialize internal state from a seed."""
         self._parser.rand.seed(seed)
 
     def render(self) -> str:
-        """Produce a random string that fits the pattern"""
+        """Produce a random string that fits the pattern."""
         return self._parser.value(self._pattern)
 
     def render_list(self, count: int) -> List[str]:
-        """Return a list of generated strings"""
+        """Return a list of generated strings."""
         return [self.render() for _ in range(count)]
 
     def render_set(self, count: int, *, max_iteration: int = 100_000) -> Set[str]:
-        """Return a set of generated unique strings"""
+        """Return a set of generated unique strings."""
         max_iteration = max(count, max_iteration)
         values = set()
         iterations = 0
