@@ -6,7 +6,6 @@
 [![PyPI - Implementation](https://img.shields.io/pypi/implementation/string-gen)](https://github.com/tolstislon/string-gen)  
 
 [![Code style: black](https://github.com/tolstislon/string-gen/workflows/tests/badge.svg)](https://github.com/tolstislon/string-gen/actions/workflows/python-package.yml)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 String generator by regex
 

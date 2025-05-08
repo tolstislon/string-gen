@@ -35,7 +35,6 @@ select = [
     "RSE", # flake8-raise
 ]
 ignore = [
-    # "S311", # Standard pseudo-random generators are not suitable for cryptographic purposesStandard pseudo-random generators are not suitable for cryptographic purposes
     "D105", # Missing docstring in magic method
     "D107", # Missing docstring in `__init__`
     "S311", # Standard pseudo-random generators are not suitable for cryptographic purposes
@@ -44,7 +43,6 @@ ignore = [
     "D203", # one-blank-line-before-class (conflicts rules)
     "COM812", # conflicts rules
     "ISC001", # conflicts rules
-    # "N818", # Exception name `{exception}` should be named with an Error suffix
 ]
 
 [lint.per-file-ignores]
