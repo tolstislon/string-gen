@@ -2,7 +2,7 @@
 
 import random
 import re
-from typing import Callable
+from typing import Callable, Union
 
 import pytest
 
@@ -105,7 +105,7 @@ def test_set_seed_method():
 
 @pytest.mark.parametrize("regex", (r"\d", rb"\d"))
 @pytest.mark.parametrize("mode", ("str", "sting_gen", "pattern"))
-def test_equal(mode: str, regex: str | bytes):
+def test_equal(mode: str, regex: Union[str, bytes]):
     new_regex = regex
     if mode == "pattern":
         new_regex = re.compile(regex)
@@ -122,7 +122,7 @@ def test_equal_error():
 
 @pytest.mark.parametrize("regex", (r"\d", rb"\d"))
 @pytest.mark.parametrize("mode", ("str", "sting_gen", "pattern"))
-def test_not_equal(mode: str, regex: str | bytes):
+def test_not_equal(mode: str, regex: Union[str, bytes]):
     new_regex = regex
     if mode == "pattern":
         new_regex = re.compile(regex)
