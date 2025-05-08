@@ -6,7 +6,6 @@
 [![PyPI - Implementation](https://img.shields.io/pypi/implementation/string-gen)](https://github.com/tolstislon/string-gen)  
 
 [![Code style: black](https://github.com/tolstislon/string-gen/workflows/tests/badge.svg)](https://github.com/tolstislon/string-gen/actions/workflows/python-package.yml)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 String generator by regex
 
@@ -73,13 +72,13 @@ You might want to:
     pipenv install --dev
     pipenv shell
    ```
-3. Run the black
+3. Run ruff format
     ```bash
-    pipenv run black
+    pipenv run format
    ```
-4. Run the flake8
+4. Run ruff check
     ```bash
-    pipenv run flake
+    pipenv run check
    ```
 5. Run tests
    ```bash

@@ -1,12 +1,15 @@
+"""Module tests."""
+
 import random
 import re
+from typing import Callable, Union
 
 import pytest
 
 from string_gen import (
     StringGen,
-    StringGenPatternError,
     StringGenMaxIterationsReachedError,
+    StringGenPatternError,
 )
 
 REGEX = (
@@ -29,14 +32,14 @@ NOT_SUPPORT = (r"(<)?(\w+@\w+(?:\.\w+)+)(?(1)>|$)",)
 
 @pytest.mark.parametrize("strip", (True, False))
 @pytest.mark.parametrize("regex", REGEX)
-def test_regex_render(regex, strip):
+def test_regex_render(regex: str, strip: bool):
     gen = StringGen(regex.strip("^$") if strip else regex)
     value = gen.render()
     assert re.match(regex, value)
 
 
 @pytest.mark.parametrize("regex", NOT_SUPPORT)
-def test_opcode_error(regex):
+def test_opcode_error(regex: str):
     gen = StringGen(regex)
     with pytest.raises(KeyError):
         gen.render()
@@ -62,7 +65,7 @@ def test_invalid_pattern():
 
 
 @pytest.mark.parametrize("regex", REGEX)
-def test_render_list(regex):
+def test_render_list(regex: str):
     count = random.randint(1, 100)
     gen = StringGen(regex)
     values = gen.render_list(count)
@@ -72,7 +75,7 @@ def test_render_list(regex):
 
 
 @pytest.mark.parametrize("regex", REGEX)
-def test_render_set(regex):
+def test_render_set(regex: str):
     count = random.randint(1, 5)
     gen = StringGen(regex)
     values = gen.render_set(count)
@@ -102,7 +105,7 @@ def test_set_seed_method():
 
 @pytest.mark.parametrize("regex", (r"\d", rb"\d"))
 @pytest.mark.parametrize("mode", ("str", "sting_gen", "pattern"))
-def test_equal(mode, regex):
+def test_equal(mode: str, regex: Union[str, bytes]):
     new_regex = regex
     if mode == "pattern":
         new_regex = re.compile(regex)
@@ -119,7 +122,7 @@ def test_equal_error():
 
 @pytest.mark.parametrize("regex", (r"\d", rb"\d"))
 @pytest.mark.parametrize("mode", ("str", "sting_gen", "pattern"))
-def test_not_equal(mode, regex):
+def test_not_equal(mode: str, regex: Union[str, bytes]):
     new_regex = regex
     if mode == "pattern":
         new_regex = re.compile(regex)
@@ -135,12 +138,12 @@ def test_bool():
 
 def test_or():
     gen1 = StringGen(r"^\d$")
-    gen2 = StringGen(r"^\w$".encode("utf-8"))
+    gen2 = StringGen(rb"^\w$")
     gen1 |= gen2
     assert re.match(r"^\d\w$", gen1.render())
 
 
 @pytest.mark.parametrize("func", (str, repr))
-def test_str_repr(func):
+def test_str_repr(func: Callable[[StringGen], str]):
     regex = r"^\d$"
     assert func(StringGen(regex)) == f"{StringGen.__name__}({regex!r})"

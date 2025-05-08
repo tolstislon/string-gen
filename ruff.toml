@@ -1,0 +1,58 @@
+line-length = 120
+target-version = "py38"
+exclude = [".git", ".pytest_cache", ".idea", ".github"]
+
+[lint]
+select = [
+    "A", # flake8-builtins
+    "ANN", # flake8-annotations
+    "B", # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "COM", # flake8-commas
+    "D", # pydocstyle
+    "E", # pycodestyle
+    "F", # Pyflakes
+    "FURB", # refurb
+    "I", # isort
+    "ICN", # flake8-import-conventions
+    "ISC", # flake8-implicit-str-concat
+    "N", # pep8-naming
+    "PERF", # Perflint
+    "PGH", # pygrep-hooks
+    "PTH", # flake8-use-pathlib
+    "RUF", # Ruff-specific rules
+    "S", # flake8-bandit
+    "T20", # flake8-print
+    "UP", # pyupgrade
+    "PIE", # flake8-pie
+    "PT", # flake8-pytest-style
+    "Q", # flake8-quotes
+    "RET", # flake8-return
+    "SIM", # flake8-simplify
+    "ARG", # flake8-unused-arguments
+    "FLY", # flynt
+    "PL", # Pylint
+    "RSE", # flake8-raise
+]
+ignore = [
+    "D105", # Missing docstring in magic method
+    "D107", # Missing docstring in `__init__`
+    "S311", # Standard pseudo-random generators are not suitable for cryptographic purposes
+    "ANN401", # Dynamically typed expressions (typing.Any) are disallowed in `value`
+    "D212", # multi-line-summary-first-line (conflicts rules)
+    "D203", # one-blank-line-before-class (conflicts rules)
+    "COM812", # conflicts rules
+    "ISC001", # conflicts rules
+]
+
+[lint.per-file-ignores]
+"test_*.py" = ["S101", "D103", "ANN201", "PLR2004"]
+
+[lint.flake8-pytest-style]
+parametrize-values-row-type = "tuple"
+parametrize-values-type = "tuple"
+fixture-parentheses = false
+mark-parentheses = false
+
+[format]
+line-ending = "lf"
