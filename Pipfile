@@ -7,9 +7,9 @@ name = "pypi"
 string_gen = { editable = true, path = "." }
 
 [dev-packages]
-pytest = "==8.3.5"
-pytest-cov = "==6.1.1"
-ruff = "==0.11.8"
+pytest = "==9.0.2"
+pytest-cov = "==7.0.0"
+ruff = "==0.14.10"
 
 [requires]
 python_version = "3.12"

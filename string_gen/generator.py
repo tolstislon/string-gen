@@ -103,7 +103,7 @@ OPCODES: Final[OpcodesDict] = {
 }
 
 
-class StringGen:
+class StringGen:  # noqa: PLW1641
     """Base class for generating strings."""
 
     __slots__ = ("_parser", "_pattern")
@@ -122,7 +122,7 @@ class StringGen:
 
     def __get_value(self, value: Any) -> re.Pattern:
         if isinstance(value, type(self)):
-            return value._pattern
+            return value._pattern  # noqa: SLF001
         if isinstance(value, re.Pattern):
             return value
         if isinstance(value, (str, bytes)):
