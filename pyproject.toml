@@ -1,58 +1,80 @@
+[project]
+name = "string_gen"
+description = "Generate random strings from regex patterns"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{ name = "tolstislon", email = "tolstislon@gmail.com" }]
+requires-python = ">=3.8"
+keywords = ["testing", "test-data", "test-data-generator", "string", "regex"]
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Software Development :: Testing",
+]
+
+[project.urls]
+Homepage = "https://github.com/tolstislon/string-gen"
+Documentation = "https://tolstislon.github.io/string-gen/"
+
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+string_gen = ["py.typed"]
+
+[tool.setuptools.packages.find]
+exclude = ["tests"]
+
+[tool.setuptools_scm]
+write_to = "string_gen/__version__.py"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--cov=string_gen",
+    "--cov-fail-under=100",
+    "-l",
+]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+omit = ["string_gen/__version__.py"]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "ty",
+]
+docs = [
+    "mkdocs-material",
+    "mkdocstrings[python]",
+]
+
+[tool.ty.environment]
+python-version = "3.8"
+
+[tool.ruff]
 line-length = 120
 target-version = "py38"
 exclude = [".git", ".pytest_cache", ".idea", ".github"]
 
-[lint]
+[tool.ruff.lint]
 select = [
     "A", # flake8-builtins
-    "ANN", # flake8-annotations
-    "B", # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "COM", # flake8-commas
-    "D", # pydocstyle
-    "E", # pycodestyle
-    "F", # Pyflakes
-    "FURB", # refurb
-    "I", # isort
-    "ICN", # flake8-import-conventions
-    "ISC", # flake8-implicit-str-concat
-    "N", # pep8-naming
-    "PERF", # Perflint
-    "PGH", # pygrep-hooks
-    "PTH", # flake8-use-pathlib
-    "RUF", # Ruff-specific rules
-    "S", # flake8-bandit
-    "T20", # flake8-print
-    "UP", # pyupgrade
-    "PIE", # flake8-pie
-    "PT", # flake8-pytest-style
-    "Q", # flake8-quotes
-    "RET", # flake8-return
-    "SIM", # flake8-simplify
-    "ARG", # flake8-unused-arguments
-    "FLY", # flynt
-    "PL", # Pylint
-    "RSE", # flake8-raise
-    "ERA", # eradicate (Закомменченый код)
-    "BLE", # flake8-blind-except
-    "FBT", # flake8-boolean-trap
-    "DTZ", # flake8-datetimez
-    "INT", # flake8-gettext
-    "TC", # flake8-type-checking
-    "W", # pycodestyle (warning)
-    "PLR", # Refactor
-    "PLW", # Warning
-    "TRY", # Warning
-    "ASYNC", # flake8-async
-    "T10", # flake8-debugger
-    "EM", # flake8-errmsg
-    "EXE", # flake8-executable
-    "LOG", # flake8-logging
-    "G", # flake8-logging-format
-    "SLF", # flake8-self
-    "SLOT", # flake8-slots
-    "TID", # flake8-tidy-imports
-    "PLE", # Pylint Error    "A", # flake8-builtins
     "ANN", # flake8-annotations
     "B", # flake8-bugbear
     "C4", # flake8-comprehensions
@@ -115,14 +137,14 @@ ignore = [
     "EM102", # Exception must not use an f-string literal, assign to variable first
 ]
 
-[lint.per-file-ignores]
-"test_*.py" = ["S101", "D103", "ANN201", "PLR2004", "FBT001"]
+[tool.ruff.lint.per-file-ignores]
+"test_*.py" = ["S101", "D102", "D103", "ANN201", "PLR2004", "FBT001"]
 
-[lint.flake8-pytest-style]
+[tool.ruff.lint.flake8-pytest-style]
 parametrize-values-row-type = "tuple"
 parametrize-values-type = "tuple"
 fixture-parentheses = false
 mark-parentheses = false
 
-[format]
+[tool.ruff.format]
 line-ending = "lf"
