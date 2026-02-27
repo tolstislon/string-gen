@@ -17,6 +17,33 @@ print(generator.render_list(5))  # ['A9046.5', 'A8334.7', 'B5496-6', 'A4207-2', 
 # Return a set of generated unique strings
 generator = StringGen(r'\d')
 print(generator.render_set(10))  # {'4', '6', '3', '9', '2', '7', '5', '1', '8', '0'}
+
+# Iterate lazily
+from itertools import islice
+generator = StringGen(r'\d{4}')
+values = list(islice(generator, 10))  # 10 random 4-digit strings
+
+# Lazy bounded stream
+for value in generator.stream(1000):
+    process(value)
+
+# Count unique strings
+generator = StringGen(r'[01]{3}')
+print(generator.count())  # 8
+
+# Enumerate all possible strings
+generator = StringGen(r'[ab]{2}')
+print(list(generator.enumerate()))  # ['aa', 'ab', 'ba', 'bb']
+
+# Custom alphabet
+from string_gen.alphabets import CYRILLIC
+generator = StringGen(r'\w{10}', alphabet=CYRILLIC)
+print(generator.render())  # e.g. щЦёИкРблнЫ
+
+# Built-in patterns
+from string_gen.patterns import UUID4, IPV4
+generator = StringGen(UUID4)
+print(generator.render())  # e.g. 52aabe4b-01fa-4b33-8976-b53b09f49e72
 """
 
 from .generator import (
@@ -24,6 +51,8 @@ from .generator import (
     StringGenError,
     StringGenMaxIterationsReachedError,
     StringGenPatternError,
+    configure,
+    reset,
 )
 
 try:
@@ -37,4 +66,6 @@ __all__ = [
     "StringGenMaxIterationsReachedError",
     "StringGenPatternError",
     "__version__",
+    "configure",
+    "reset",
 ]

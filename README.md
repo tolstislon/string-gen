@@ -3,84 +3,90 @@
 [![PyPI](https://img.shields.io/pypi/v/string-gen?color=%2301a001&label=pypi&logo=version)](https://pypi.org/project/string-gen/)
 [![Downloads](https://pepy.tech/badge/string-gen)](https://pepy.tech/project/string-gen)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/string-gen.svg)](https://pypi.org/project/string-gen/)
-[![PyPI - Implementation](https://img.shields.io/pypi/implementation/string-gen)](https://github.com/tolstislon/string-gen)  
+[![PyPI - Implementation](https://img.shields.io/pypi/implementation/string-gen)](https://github.com/tolstislon/string-gen)
 
-[![Code style: black](https://github.com/tolstislon/string-gen/workflows/tests/badge.svg)](https://github.com/tolstislon/string-gen/actions/workflows/python-package.yml)
+[![Tests](https://github.com/tolstislon/string-gen/workflows/tests/badge.svg)](https://github.com/tolstislon/string-gen/actions/workflows/python-package.yml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-String generator by regex
+Generate random strings from regular expression patterns.
 
-Installation
-----
-Install using pip with
+**string-gen** takes a regex pattern and produces random strings that match it. Common use cases include:
+
+- **Test data generation** — create realistic inputs for unit and integration tests
+- **Fixtures** — produce parameterized test fixtures on the fly
+- **Fuzzing** — generate semi-structured random inputs for fuzz testing
+- **Mock data** — build placeholder data for prototyping and demos
+
+**[Documentation](https://tolstislon.github.io/string-gen/)** | **[API Reference](https://tolstislon.github.io/string-gen/reference/api/)** | **[Cookbook](https://tolstislon.github.io/string-gen/examples/cookbook/)**
+
+## Installation
 
 ```bash
 pip install string-gen
 ```
 
-Example
-----
+## Quick Start
 
 ```python
 from string_gen import StringGen
 
-generator = StringGen(r'(A|B)\d{4}(\.|-)\d{1}')
-print(generator.render())  # B9954.4
-print(generator.render())  # A5292-1
+# Basic generation
+gen = StringGen(r'(A|B)\d{4}(\.|-)\d{1}')
+gen.render()  # e.g. 'B9954.4'
 
-generator = StringGen(r'[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}')
-print(generator.render())  # 52aabe4b-01fa-4b33-8976-b53b09f49e72
+# List of strings
+gen = StringGen(r'[A-Z]{3}-\d{3}')
+gen.render_list(5)  # e.g. ['XKR-839', 'BNQ-271', 'JYL-054', 'WMT-692', 'AFZ-418']
 
-# Generate list strings
-generator = StringGen(r'(A|B)\d{4}(\.|-)\d{1}')
-print(generator.render_list(5))  # ['A9046.5', 'A8334.7', 'B5496-6', 'A4207-2', 'A1171-7']
+# Built-in patterns
+from string_gen.patterns import UUID4, IPV4
+StringGen(UUID4).render()  # e.g. '52aabe4b-01fa-4b33-8976-b53b09f49e72'
+StringGen(IPV4).render()   # e.g. '192.168.1.42'
 
-# Return a set of generated unique strings
-generator = StringGen(r'\d')
-print(generator.render_set(10))  # {'4', '6', '3', '9', '2', '7', '5', '1', '8', '0'}
+# Custom alphabets
+from string_gen.alphabets import CYRILLIC
+StringGen(r'\w{10}', alphabet=CYRILLIC).render()  # e.g. 'ёЩкРблнЫйМ'
 ```
 
-Changelog
-----
+For full documentation visit **[tolstislon.github.io/string-gen](https://tolstislon.github.io/string-gen/)**.
 
-* [Releases](https://github.com/tolstislon/string-gen/releases)
+## Changelog
 
-Contributing
-----
+- [Releases](https://github.com/tolstislon/string-gen/releases)
 
-#### Contributions are very welcome.
+## Contributing
 
-You might want to:
+Contributions are very welcome. You might want to:
 
-* Fix spelling errors
-* Improve documentation
-* Add tests for untested code
-* Add new features
-* Fix bugs
+- Fix spelling errors
+- Improve documentation
+- Add tests for untested code
+- Add new features
+- Fix bugs
 
-#### Getting started
+### Getting started
 
-* python 3.12
-* pipenv 2023.11.15+
+- Python 3.8+
+- [uv](https://docs.astral.sh/uv/)
 
 1. Clone the repository
     ```bash
     git clone https://github.com/tolstislon/string-gen.git
     cd string-gen
-   ```
+    ```
 2. Install dev dependencies
     ```bash
-    pipenv install --dev
-    pipenv shell
-   ```
+    uv sync
+    ```
 3. Run ruff format
     ```bash
-    pipenv run format
-   ```
+    uv run ruff format
+    ```
 4. Run ruff check
     ```bash
-    pipenv run check
-   ```
+    uv run ruff check --fix
+    ```
 5. Run tests
-   ```bash
-   pipenv run tests
-   ```
+    ```bash
+    uv run pytest tests/
+    ```
