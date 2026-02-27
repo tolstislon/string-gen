@@ -152,7 +152,7 @@ class _Parser:
         alphabet: Union[str, None] = None,
     ) -> None:
         self.cache: Dict[str, Any] = {}
-        self.rand = random.Random(seed)
+        self.rand = random.Random(bytes(seed) if isinstance(seed, bytearray) else seed)
         self.max_repeat = max_repeat
         if alphabet is None:
             self.categories = _DEFAULT_CATEGORIES
@@ -488,7 +488,7 @@ class StringGen:
 
         :param seed: Seed value accepted by ``random.Random.seed``.
         """
-        self._parser.rand.seed(seed)
+        self._parser.rand.seed(bytes(seed) if isinstance(seed, bytearray) else seed)
 
     def render(self) -> str:
         """Produce a single random string matching the pattern."""

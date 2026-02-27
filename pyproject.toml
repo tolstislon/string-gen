@@ -2,7 +2,7 @@
 name = "string_gen"
 description = "Generate random strings from regex patterns"
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
 authors = [{ name = "tolstislon", email = "tolstislon@gmail.com" }]
 requires-python = ">=3.8"
 keywords = ["testing", "test-data", "test-data-generator", "string", "regex"]
