@@ -15,7 +15,7 @@ gen.render()  # e.g. '52aabe4b-01fa-4b33-8976-b53b09f49e72'
 ## Email-like Strings
 
 ```python
-gen = StringGen(r'[a-z]{5,10}@(gmail|yahoo|outlook)\.com')
+gen = StringGen(r"[a-z]{5,10}@(gmail|yahoo|outlook)\.com")
 gen.render()  # e.g. 'hqxvmr@gmail.com'
 ```
 
@@ -52,15 +52,15 @@ from string_gen import StringGen
 from string_gen.alphabets import CYRILLIC, CJK, GREEK
 
 # Russian text
-gen = StringGen(r'\w{10}', alphabet=CYRILLIC)
+gen = StringGen(r"\w{10}", alphabet=CYRILLIC)
 gen.render()  # e.g. 'ёЩкРблнЫйМ'
 
 # Chinese characters
-gen = StringGen(r'\w{5}', alphabet=CJK)
+gen = StringGen(r"\w{5}", alphabet=CJK)
 gen.render()  # e.g. '漢字生成器'
 
 # Greek text
-gen = StringGen(r'\w{8}', alphabet=GREEK)
+gen = StringGen(r"\w{8}", alphabet=GREEK)
 gen.render()  # e.g. 'αβγδεζηθ'
 ```
 
@@ -69,7 +69,7 @@ gen.render()  # e.g. 'αβγδεζηθ'
 Generate **all** possible values for a finite pattern:
 
 ```python
-gen = StringGen(r'[ab]{2}')
+gen = StringGen(r"[ab]{2}")
 
 # Check total count
 gen.count()  # 4
@@ -81,7 +81,7 @@ list(gen.enumerate())  # ['aa', 'ab', 'ba', 'bb']
 Use `enumerate` with `limit` for patterns that have unbounded quantifiers:
 
 ```python
-gen = StringGen(r'\d+')
+gen = StringGen(r"\d+")
 list(gen.enumerate(limit=1))  # ['0', '1', '2', ..., '9']
 ```
 
@@ -90,7 +90,7 @@ list(gen.enumerate(limit=1))  # ['0', '1', '2', ..., '9']
 Use `seed` for deterministic output across runs:
 
 ```python
-gen = StringGen(r'[A-Z]{3}-\d{3}', seed=42)
+gen = StringGen(r"[A-Z]{3}-\d{3}", seed=42)
 gen.render()  # always produces the same string
 
 # Re-seed to replay the sequence
@@ -103,8 +103,8 @@ gen.render()  # same string again
 Use `|` to concatenate patterns:
 
 ```python
-prefix = StringGen(r'[A-Z]{3}')
-suffix = StringGen(r'\d{4}')
+prefix = StringGen(r"[A-Z]{3}")
+suffix = StringGen(r"\d{4}")
 
 combined = prefix | suffix
 combined.render()  # e.g. 'XKR8374'
@@ -118,7 +118,7 @@ combined.render()  # e.g. 'XKR8374'
 For large batches, `stream` is more memory-efficient than `render_list`:
 
 ```python
-gen = StringGen(r'\d{10}')
+gen = StringGen(r"\d{10}")
 
 # Memory-efficient: yields one at a time
 for value in gen.stream(100_000):
@@ -133,7 +133,7 @@ values = gen.render_list(100_000)
 Combine `render_set` with `count` to safely generate unique values:
 
 ```python
-gen = StringGen(r'[A-F]\d')
+gen = StringGen(r"[A-F]\d")
 
 # Check if enough unique strings are possible
 available = gen.count()  # 60
