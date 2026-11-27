@@ -39,8 +39,10 @@ gen.render_set(10, max_iteration=1_000)  # raises early if unlucky
 If the pattern cannot produce enough unique strings, a `ValueError` is raised immediately:
 
 ```python
-gen = StringGen(r"[ab]")
-gen.render_set(5)  # ValueError: Cannot generate 5 unique strings: pattern can only produce 4
+gen = StringGen(r"a?a?")
+gen.count()  # 3
+list(gen.enumerate())  # ['', 'a', 'aa']
+gen.render_set(4)  # ValueError: Cannot generate 4 unique strings: pattern can only produce 3
 ```
 
 ## Iteration
@@ -78,12 +80,17 @@ for value in gen.stream(1000):
 
 Return the number of unique strings the pattern can produce. Returns `math.inf` for patterns with unbounded quantifiers (`*`, `+`, `{n,}`). The result is cached after the first call.
 
+If several paths produce the same string, it counts once. For finite patterns with ambiguous backreferences, the counter represents character choices as sets and records which positions must be equal. It counts assignments to those positions and accounts for intersections between alternatives. The cost can still grow exponentially with the number of branch and repeat choices or distinct intersections.
+
 ```python
 gen = StringGen(r"[01]{3}")
 gen.count()  # 8
 
 gen = StringGen(r"\d")
 gen.count()  # 10
+
+gen = StringGen(r"([ab]{64})\1a?a?")
+gen.count()  # 3 * 2**64: each captured word has three possible endings
 
 gen = StringGen(r"\w+")
 gen.count()  # math.inf
@@ -92,6 +99,8 @@ gen.count()  # math.inf
 ## enumerate()
 
 Yield **all** unique strings the pattern can produce. Useful for exhaustive testing over finite patterns.
+
+When paths may overlap, the iterator remembers previously yielded strings and preserves the order of their first occurrence.
 
 ```python
 gen = StringGen(r"[ab]{2}")

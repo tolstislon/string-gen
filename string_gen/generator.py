@@ -10,9 +10,12 @@ import math
 import random
 import re
 import string
-from collections.abc import Callable, Iterator, Sequence
-from itertools import chain
-from typing import Any, Final
+from collections import defaultdict
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from dataclasses import dataclass
+from typing import Any, Final, TypeVar
+
+from ._backrefs import Atom, count_union
 
 try:
     import re._parser as parse  # ty: ignore[import-not-found]
@@ -70,9 +73,9 @@ def _build_categories(alphabet: str, printable: str) -> dict[int, str]:
 _DEFAULT_CATEGORIES: Final[dict[int, str]] = _build_categories(string.ascii_letters, string.printable)
 
 
-def _chars_in_class(items: list[tuple[int, Any]], categories: dict[int, str], printable: str) -> list[str]:
+def _chars_in_class(items: list[tuple[int, Any]], categories: dict[int, str], printable: str) -> str:
     """
-    Collect all characters matched by a character class (``[...]``).
+    Expand a character class, preserving order and weights for random sampling.
 
     :param items: Parsed items inside the character class.
     :param categories: Category lookup table.
@@ -90,8 +93,8 @@ def _chars_in_class(items: list[tuple[int, Any]], categories: dict[int, str], pr
         elif op == parse.CATEGORY:
             chars.extend(categories[value])
     if negate:
-        return sorted(set(printable) - set(chars))
-    return sorted(set(chars))
+        return "".join(sorted(set(printable) - set(chars)))
+    return "".join(chars)
 
 
 _DEFAULT_MAX_REPEAT: Final[int] = 100
@@ -143,7 +146,7 @@ def _get_bytes(val: str | bytes) -> bytes:
 class _Parser:
     """Internal regex AST walker that produces random strings."""
 
-    __slots__ = ("cache", "categories", "max_repeat", "printable", "rand")
+    __slots__ = ("_class_chars", "_unique_chars", "cache", "categories", "max_repeat", "printable", "rand")
 
     def __init__(
         self,
@@ -152,7 +155,9 @@ class _Parser:
         max_repeat: int = _DEFAULT_MAX_REPEAT,
         alphabet: str | None = None,
     ) -> None:
-        self.cache: dict[str, Any] = {}
+        self.cache: dict[int, str] = {}
+        self._class_chars: dict[tuple[tuple[int, Any], ...], str] = {}
+        self._unique_chars: dict[str, str] = {}
         self.rand = random.Random(bytes(seed) if isinstance(seed, bytearray) else seed)
         self.max_repeat = max_repeat
         if alphabet is None:
@@ -176,7 +181,10 @@ class _Parser:
         """
         upper = end_range if end_range < parse.MAXREPEAT else max(start_range, self.max_repeat)
         times = self.rand.randint(start_range, upper)
-        return "".join("".join(self.state(i) for i in value) for _ in range(times))
+        if len(value) == 1:
+            node = value[0]
+            return "".join(self.state(node) for _ in range(times))
+        return "".join(self.sequence(value) for _ in range(times))
 
     def group(self, value: Sequence[Any]) -> str:
         """
@@ -184,21 +192,31 @@ class _Parser:
 
         :param value: Tuple of ``(group_index, ..., sub_pattern)``.
         """
-        result = "".join(self.state(i) for i in value[-1])
+        result = self.sequence(value[-1])
         if value[0]:
             self.cache[value[0]] = result
         return result
 
-    def in_state(self, value: list[Any]) -> Any:
-        """
-        Pick a random character from a character class (``[...]``).
+    def class_chars(self, items: list[tuple[int, Any]]) -> str:
+        """Return sampling candidates for this class and instance's alphabet."""
+        key = tuple(items)
+        chars = self._class_chars.get(key)
+        if chars is None:
+            chars = self._class_chars[key] = _chars_in_class(items, self.categories, self.printable)
+        return chars
 
-        :param value: List of parsed alternatives inside the class.
-        """
-        candidates = list(chain(*(self.state(i) for i in value)))
-        if candidates[0] is False:
-            candidates = sorted(set(self.printable).difference(candidates[1:]))
-        return self.rand.choice(candidates)
+    def node_chars(self, opcode: int, value: Any) -> str:
+        """Return the distinct characters emitted by a single-character node."""
+        if opcode == parse.IN:
+            chars = self.class_chars(value)
+            unique = self._unique_chars.get(chars)
+            if unique is None:
+                unique = self._unique_chars[chars] = "".join(sorted(set(chars)))
+            return unique
+        if opcode == parse.LITERAL:
+            return chr(value)
+        excluded = "\n" if opcode == parse.ANY else chr(value)
+        return "".join(dict.fromkeys(self.printable.replace(excluded, "")))
 
     def state(self, state: tuple[int, Any]) -> Any:
         """
@@ -212,16 +230,16 @@ class _Parser:
         except KeyError:
             raise StringGenError(f"Unsupported opcode: {opcode!r}") from None
 
-    def value(self, pattern: re.Pattern) -> str:
-        """
-        Parse and walk a compiled regex pattern, returning a random matching string.
+    def sequence(self, parsed: Sequence[tuple[int, Any]]) -> str:
+        """Render consecutive nodes using the current capture bindings."""
+        return "".join(self.state(state) for state in parsed)
 
-        :param pattern: A compiled ``re.Pattern`` object.
-        """
-        parsed = parse.parse(pattern.pattern)
-        result = "".join(self.state(state) for state in parsed)  # ty: ignore[invalid-argument-type]
-        self.cache.clear()
-        return result
+    def value(self, parsed: Sequence[tuple[int, Any]]) -> str:
+        """Walk the parsed pattern and return a random matching string."""
+        try:
+            return self.sequence(parsed)
+        finally:
+            self.cache.clear()
 
 
 # Dispatch table mapping sre_parse opcodes to handler functions.
@@ -231,66 +249,183 @@ OPCODES: Final[OpcodesDict] = {
     parse.LITERAL: lambda _, x: chr(x),
     parse.NOT_LITERAL: lambda p, x: p.rand.choice(p.printable.replace(chr(x), "")),
     parse.AT: lambda *_: "",
-    parse.IN: lambda p, x: p.in_state(x),
+    parse.IN: lambda p, x: p.rand.choice(p.class_chars(x)),
     parse.ANY: lambda p, _: p.rand.choice(p.printable.replace("\n", "")),
-    parse.RANGE: lambda _, x: [chr(i) for i in range(x[0], x[1] + 1)],
-    parse.CATEGORY: lambda p, x: p.categories[x],
-    parse.BRANCH: lambda p, x: "".join(p.state(i) for i in p.rand.choice(x[1])),
+    parse.BRANCH: lambda p, x: p.sequence(p.rand.choice(x[1])),
     parse.SUBPATTERN: lambda p, x: p.group(x),
-    parse.ASSERT: lambda p, x: "".join(p.state(i) for i in x[1]),
+    parse.ASSERT: lambda p, x: p.sequence(x[1]),
     parse.ASSERT_NOT: lambda *_: "",
     parse.GROUPREF: lambda p, x: p.cache[x],
     parse.MIN_REPEAT: lambda p, x: p.repeat(*x),
     parse.MAX_REPEAT: lambda p, x: p.repeat(*x),
-    parse.NEGATE: lambda *_: [False],
 }
 
 
+_CHAR_OPS = (parse.LITERAL, parse.NOT_LITERAL, parse.IN, parse.ANY)
+_REPEAT_OPS = (parse.MAX_REPEAT, parse.MIN_REPEAT)
+
+
+_Shape = tuple[int | None, bool]
+
+
+def _branch_shape(branches: Sequence[Sequence[tuple[int, Any]]], shapes: dict[int, _Shape]) -> _Shape:
+    """Distinct leading literals identify a branch from its output."""
+    initials = {branch[0][1] for branch in branches if branch and branch[0][0] == parse.LITERAL}
+    if len(initials) != len(branches):
+        return None, True
+    branch_shapes = [shapes[id(branch)] for branch in branches]
+    widths = {width for width, _ in branch_shapes}
+    return widths.pop() if len(widths) == 1 else None, any(overlap for _, overlap in branch_shapes)
+
+
+def _delimited_repeat(body: Sequence[tuple[int, Any]], following: tuple[int, Any], parser: _Parser) -> bool:
+    """Check whether the next literal marks the end of a repeated character class."""
+    return (
+        following[0] == parse.LITERAL
+        and len(body) == 1
+        and body[0][0] in _CHAR_OPS
+        and chr(following[1]) not in parser.node_chars(*body[0])
+    )
+
+
+def _sequence_shape(nodes: Sequence[tuple[int, Any]], shapes: dict[int, _Shape], parser: _Parser) -> _Shape:
+    """Combine a sequence using the already computed shapes of its children."""
+    width: int | None = 0
+    captures: dict[int, int | None] = {}
+    open_boundary = False
+    for index, (opcode, value) in enumerate(nodes):
+        delimited = False
+        overlap = False
+        if opcode == parse.BRANCH:
+            size, overlap = _branch_shape(value[1], shapes)
+        elif opcode in _REPEAT_OPS:
+            start, end, body = value
+            size, overlap = shapes[id(body)]
+            overlap = overlap or (size is None and end > 1) or (size in (None, 0) and start != end)
+            size = start * size if start == end and size is not None else None
+            if size is None and index + 1 < len(nodes):
+                delimited = _delimited_repeat(body, nodes[index + 1], parser)
+        elif opcode in (parse.SUBPATTERN, parse.ASSERT):
+            size, overlap = shapes[id(value[-1])]
+            if opcode == parse.SUBPATTERN and value[0]:
+                captures[value[0]] = size
+        elif opcode == parse.GROUPREF:
+            # Only directly preceding, unconditional captures are guaranteed to be bound.
+            size = captures.get(value)
+        else:
+            size = int(opcode in _CHAR_OPS)
+        if overlap or (size is None and open_boundary):
+            return None, True
+        if size is None:
+            open_boundary = not delimited
+        width = width + size if width is not None and size is not None else None
+    return width, False
+
+
+def _output_shape(nodes: Sequence[tuple[int, Any]], parser: _Parser) -> _Shape:
+    """Find the fixed output width and possible overlap, visiting children before parents."""
+    # Collect parents before their children, then evaluate in reverse order.
+    sequences = [nodes]
+    for sequence in sequences:
+        for opcode, value in sequence:
+            if opcode == parse.BRANCH:
+                sequences.extend(value[1])
+            elif opcode in _REPEAT_OPS or opcode in (parse.SUBPATTERN, parse.ASSERT):
+                sequences.append(value[-1])
+    shapes: dict[int, _Shape] = {}
+    for sequence in reversed(sequences):
+        shapes[id(sequence)] = _sequence_shape(sequence, shapes, parser)
+    return shapes[id(nodes)]
+
+
+class _DistinctCounter:
+    """Count finite regular outputs by grouping prefixes with identical continuations."""
+
+    __slots__ = ("parser", "positions")
+
+    def __init__(self, parser: _Parser) -> None:
+        self.parser = parser
+        # Position zero accepts the empty suffix.
+        self.positions: list[tuple[str, frozenset[int]]] = [("", frozenset())]
+
+    def _prepend(self, nodes: Sequence[tuple[int, Any]], tail: frozenset[int]) -> frozenset[int]:
+        """Build character positions backwards, linking each to its possible successors."""
+        for opcode, value in reversed(nodes):
+            if opcode in _CHAR_OPS:
+                self.positions.append((self.parser.node_chars(opcode, value), tail))
+                tail = frozenset((len(self.positions) - 1,))
+            elif opcode == parse.BRANCH:
+                tail = frozenset().union(*(self._prepend(branch, tail) for branch in value[1]))
+            elif opcode in (parse.SUBPATTERN, parse.ASSERT):
+                tail = self._prepend(value[-1], tail)
+            elif opcode in _REPEAT_OPS:
+                start, end, body = value
+                after_repeat = tail
+                for _ in range(end - start):
+                    tail = after_repeat | self._prepend(body, tail)
+                for _ in range(start):
+                    tail = self._prepend(body, tail)
+            # AT and ASSERT_NOT emit nothing and keep the same tail.
+        return tail
+
+    def count(self, nodes: Sequence[tuple[int, Any]]) -> int:
+        """Advance one character at a time, counting each distinct prefix once."""
+        prefixes = {self._prepend(nodes, frozenset((0,))): 1}
+        total = 0
+        while prefixes:
+            following: defaultdict[frozenset[int], int] = defaultdict(int)
+            for positions, count in prefixes.items():
+                if 0 in positions:
+                    total += count
+                moves: defaultdict[str, set[int]] = defaultdict(set)
+                for position in positions:
+                    chars, successors = self.positions[position]
+                    for char in chars:
+                        moves[char].update(successors)
+                for destinations in moves.values():
+                    following[frozenset(destinations)] += count
+            prefixes = following
+        return total
+
+
 class _Counter:
-    """Count the number of unique strings a parsed regex can produce."""
+    """Count generation paths arithmetically before resolving possible overlaps."""
 
-    __slots__ = ("categories", "printable")
+    __slots__ = ("has_backrefs", "parser")
 
-    def __init__(self, categories: dict[int, str], printable: str) -> None:
-        self.categories = categories
-        self.printable = printable
+    def __init__(self, parser: _Parser) -> None:
+        self.parser = parser
+        self.has_backrefs = False
 
     def count(self, parsed: Sequence[tuple[int, Any]]) -> int | float:
         """
-        Return the total number of unique strings for a parsed sequence.
+        Return the number of generation paths for a parsed sequence.
 
         :param parsed: Sequence of ``(opcode, value)`` tuples from the regex AST.
         """
         result: int | float = 1
         for node in parsed:
-            result *= self._node(node)
-            if result == math.inf:
+            factor = self._node(node)
+            if factor == math.inf:
                 return math.inf
+            result *= factor
         return result
 
-    def _node(self, state: tuple[int, Any]) -> int | float:  # noqa: PLR0911
+    def _node(self, state: tuple[int, Any]) -> int | float:
         opcode, value = state
-        if opcode == parse.LITERAL:
+        if opcode in _CHAR_OPS:
+            return len(self.parser.node_chars(opcode, value))
+        if opcode in (parse.AT, parse.ASSERT_NOT):
             return 1
-        if opcode == parse.NOT_LITERAL:
-            return len(set(self.printable) - {chr(value)})
-        if opcode == parse.AT:
-            return 1
-        if opcode == parse.IN:
-            return len(_chars_in_class(value, self.categories, self.printable))
-        if opcode == parse.ANY:
-            return len(set(self.printable) - {"\n"})
         if opcode == parse.BRANCH:
-            return sum(self.count(branch) for branch in value[1])
-        if opcode == parse.SUBPATTERN:
+            counts = [self.count(branch) for branch in value[1]]
+            return math.inf if math.inf in counts else sum(counts)
+        if opcode in (parse.SUBPATTERN, parse.ASSERT):
             return self.count(value[-1])
-        if opcode == parse.ASSERT:
-            return self.count(value[1])
-        if opcode == parse.ASSERT_NOT:
-            return 1
         if opcode == parse.GROUPREF:
+            self.has_backrefs = True
             return 1
-        if opcode in (parse.MAX_REPEAT, parse.MIN_REPEAT):
+        if opcode in _REPEAT_OPS:
             return self._count_repeat(value)
         raise StringGenError(f"Unsupported opcode: {opcode!r}")
 
@@ -299,98 +434,157 @@ class _Counter:
         if end >= parse.MAXREPEAT:
             return math.inf
         inner = self.count(pattern)
-        if inner == 0:
-            return 0
+        if start == end:
+            return 1 if start == 0 else inner**start
         if inner == math.inf:
-            return math.inf if start > 0 or end > 0 else 1
-        total: int | float = 0
-        for k in range(start, end + 1):
-            total += inner**k
-        return total
+            return math.inf
+        terms = end - start + 1
+        if inner == 1:
+            return terms
+        divisor = inner - 1
+        if divisor == 1:  # Powers of two are exact bit shifts.
+            return (1 << (end + 1)) - (1 << start)
+        # Factor out the first term and sum 1 + inner + ... + inner**(terms - 1).
+        return inner**start * ((inner**terms - 1) // divisor)
+
+
+def _counted_sequence(nodes: Sequence[tuple[int, Any]]) -> Sequence[tuple[int, Any]]:
+    """Strip whole-word copies: repeating each word a fixed number of times is injective."""
+    while len(nodes) > 1 and nodes[0][0] == parse.SUBPATTERN:
+        group, _, _, body = nodes[0][1]
+        if not all(node == (parse.GROUPREF, group) for node in nodes[1:]):
+            break
+        nodes = body
+    return nodes
+
+
+@dataclass(slots=True)
+class _CloseGroup:
+    """Bind the output since start when a group finishes."""
+
+    group: int
+    start: int
+    after: "_Cursor | _CloseGroup | None"
+
+
+@dataclass(slots=True)
+class _Cursor:
+    """A position in a sequence and the work to resume after its last repetition."""
+
+    nodes: Sequence[tuple[int, Any]]
+    after: "_Cursor | _CloseGroup | None"
+    index: int = 0
+    repetitions: int = 1
+
+    def advance(self) -> "_Cursor | _CloseGroup | None":
+        """Return the continuation after the current node."""
+        if self.index + 1 < len(self.nodes):
+            return _Cursor(self.nodes, self.after, self.index + 1, self.repetitions)
+        if self.repetitions > 1:
+            return _Cursor(self.nodes, self.after, repetitions=self.repetitions - 1)
+        return self.after
+
+
+_Continuation = _Cursor | _CloseGroup | None
+_Item = TypeVar("_Item")
+_Choices = Callable[[str, int], Iterable[_Item]]
+_Bindings = dict[int, tuple[int, int]]
 
 
 class _Enumerator:
     """Enumerate all unique strings a parsed regex can produce."""
 
-    __slots__ = ("categories", "max_repeat", "printable")
+    __slots__ = ("max_repeat", "parser")
 
-    def __init__(self, categories: dict[int, str], printable: str, max_repeat: int) -> None:
-        self.categories = categories
-        self.printable = printable
+    def __init__(self, parser: _Parser, max_repeat: int) -> None:
+        self.parser = parser
         self.max_repeat = max_repeat
 
     def enumerate(self, parsed: Sequence[tuple[int, Any]]) -> Iterator[str]:
-        """
-        Yield all unique strings for a parsed sequence.
+        """Yield distinct strings in depth-first order, keeping choices lazy."""
 
-        :param parsed: Sequence of ``(opcode, value)`` tuples from the regex AST.
-        """
-        for s, _ in self._sequence(list(parsed), {}):
-            yield s
+        def characters(chars: str, _position: int) -> str:
+            return chars
 
-    def _sequence(self, nodes: list[tuple[int, Any]], bindings: dict[int, str]) -> Iterator[tuple[str, dict[int, str]]]:
-        if not nodes:
-            yield "", bindings
+        words = map("".join, self._paths(parsed, characters))
+        return self._unique(words) if _output_shape(parsed, self.parser)[1] else words
+
+    @staticmethod
+    def _unique(words: Iterator[str]) -> Iterator[str]:
+        seen: set[str] = set()
+        for word in words:
+            if word not in seen:
+                seen.add(word)
+                yield word
+
+    def count_backrefs(self, parsed: Sequence[tuple[int, Any]], needed: int | None) -> int:
+        """Count structural paths with character domains and copies of captured positions."""
+        domains: dict[str, frozenset[str]] = {}
+
+        def character_domain(chars: str, position: int) -> Iterator[Atom]:
+            if chars:
+                if chars not in domains:
+                    domains[chars] = frozenset(chars)
+                yield position, domains[chars]
+
+        return count_union(self._paths(parsed, character_domain), needed)
+
+    def _paths(self, parsed: Sequence[tuple[int, Any]], characters: _Choices[_Item]) -> Iterator[list[_Item]]:
+        """Yield a borrowed path buffer, valid until the next step of the traversal."""
+        parts: list[_Item] = []
+        # Each choice point resumes with the output prefix it started with.
+        stack = [(0, self._steps(_Cursor(parsed, None), parts, {}, characters))]
+        while stack:
+            length, choices = stack[-1]
+            del parts[length:]
+            step = next(choices, None)
+            if step is None:
+                stack.pop()
+                continue
+            item, continuation, bindings = step
+            if item is not None:
+                parts.append(item)
+            if continuation is not None:
+                stack.append((len(parts), self._steps(continuation, parts, bindings, characters)))
+            else:
+                yield parts
+
+    def _steps(  # noqa: PLR0912
+        self, cursor: _Cursor | _CloseGroup, parts: list[_Item], bindings: _Bindings, characters: _Choices[_Item]
+    ) -> Iterator[tuple[_Item | None, _Continuation, _Bindings]]:
+        """Yield the alternatives at one position, each with its continuation."""
+        if isinstance(cursor, _CloseGroup):
+            yield None, cursor.after, {**bindings, cursor.group: (cursor.start, len(parts))}
             return
-        first, *rest = nodes
-        for prefix, b in self._node(first, bindings):
-            for suffix, b2 in self._sequence(rest, b):
-                yield prefix + suffix, b2
-
-    def _node(  # noqa: PLR0912
-        self, state: tuple[int, Any], bindings: dict[int, str]
-    ) -> Iterator[tuple[str, dict[int, str]]]:
-        opcode, value = state
-        if opcode == parse.LITERAL:
-            yield chr(value), bindings
-        elif opcode == parse.NOT_LITERAL:
-            for c in self.printable:
-                if c != chr(value):
-                    yield c, bindings
-        elif opcode == parse.AT:
-            yield "", bindings
-        elif opcode == parse.IN:
-            for c in _chars_in_class(value, self.categories, self.printable):
-                yield c, bindings
-        elif opcode == parse.ANY:
-            for c in self.printable:
-                if c != "\n":
-                    yield c, bindings
+        if not cursor.nodes or not cursor.repetitions:
+            yield None, cursor.after, bindings
+            return
+        opcode, value = cursor.nodes[cursor.index]
+        after = cursor.advance()
+        if opcode in _CHAR_OPS:
+            for choice in characters(self.parser.node_chars(opcode, value), len(parts)):
+                yield choice, after, bindings
+        elif opcode in (parse.AT, parse.ASSERT_NOT):
+            yield None, after, bindings
+        elif opcode == parse.GROUPREF:
+            start, end = bindings.get(value, (0, 0))
+            # The choice point restores the buffer length when it backtracks.
+            parts.extend(parts[start:end])
+            yield None, after, bindings
         elif opcode == parse.BRANCH:
             for branch in value[1]:
-                yield from self._sequence(list(branch), bindings)
-        elif opcode == parse.SUBPATTERN:
-            group_id = value[0]
-            for s, updated in self._sequence(list(value[-1]), bindings):
-                yield s, ({**updated, group_id: s} if group_id else updated)
-        elif opcode == parse.ASSERT:
-            yield from self._sequence(list(value[1]), bindings)
-        elif opcode == parse.ASSERT_NOT:
-            yield "", bindings
-        elif opcode == parse.GROUPREF:
-            yield bindings.get(value, ""), bindings
-        elif opcode in (parse.MAX_REPEAT, parse.MIN_REPEAT):
-            yield from self._repeat(value, bindings)
+                yield None, _Cursor(branch, after), bindings
+        elif opcode in (parse.SUBPATTERN, parse.ASSERT):
+            if opcode == parse.SUBPATTERN and value[0]:
+                after = _CloseGroup(value[0], len(parts), after)
+            yield None, _Cursor(value[-1], after), bindings
+        elif opcode in _REPEAT_OPS:
+            start, end, body = value
+            upper = end if end < parse.MAXREPEAT else max(start, self.max_repeat)
+            for count in range(start, upper + 1):
+                yield None, _Cursor(body, after, repetitions=count), bindings
         else:
             raise StringGenError(f"Unsupported opcode: {opcode!r}")
-
-    def _repeat(
-        self, value: tuple[int, int, list[Any]], bindings: dict[int, str]
-    ) -> Iterator[tuple[str, dict[int, str]]]:
-        start, end, pattern = value
-        upper = end if end < parse.MAXREPEAT else max(start, self.max_repeat)
-        for k in range(start, upper + 1):
-            yield from self._repeat_n(list(pattern), k, bindings)
-
-    def _repeat_n(
-        self, pattern: list[tuple[int, Any]], n: int, bindings: dict[int, str]
-    ) -> Iterator[tuple[str, dict[int, str]]]:
-        if n == 0:
-            yield "", bindings
-            return
-        for prefix, b in self._sequence(pattern, bindings):
-            for suffix, b2 in self._repeat_n(pattern, n - 1, b):
-                yield prefix + suffix, b2
 
 
 class StringGen:
@@ -412,7 +606,7 @@ class StringGen:
     with ``==`` against other patterns, and tested for emptiness with ``bool()``.
     """
 
-    __slots__ = ("_cached_count", "_parser", "_pattern")
+    __slots__ = ("_cached_count", "_parser", "_pattern", "_tree")
     __hash__ = None
 
     def __init__(
@@ -432,7 +626,16 @@ class StringGen:
         effective = max_repeat if max_repeat is not None else _config["max_repeat"]
         effective_alphabet = alphabet if alphabet is not None else _config["alphabet"]
         self._parser = _Parser(seed, max_repeat=effective, alphabet=effective_alphabet)
+        self._tree: Sequence[tuple[int, Any]] | None = None
         self._cached_count: int | float | None = None
+
+    @property
+    def _parsed(self) -> Sequence[tuple[int, Any]]:
+        if self._tree is None:
+            # re.compile already emitted any requested debug output.
+            flags = self._pattern.flags & ~int(re.DEBUG)
+            self._tree = parse.parse(self._pattern.pattern, flags).data
+        return self._tree
 
     @property
     def pattern(self) -> re.Pattern:
@@ -493,7 +696,7 @@ class StringGen:
 
     def render(self) -> str:
         """Produce a single random string matching the pattern."""
-        return self._parser.value(self._pattern)
+        return self._parser.value(self._parsed)
 
     def count(self) -> int | float:
         """
@@ -502,10 +705,24 @@ class StringGen:
         Returns ``math.inf`` for patterns with unbounded quantifiers
         (``*``, ``+``, ``{n,}``).  The result is cached after the first call.
         """
-        if self._cached_count is None:
-            counter = _Counter(self._parser.categories, self._parser.printable)
-            self._cached_count = counter.count(parse.parse(self._pattern.pattern))  # ty: ignore[invalid-argument-type]
-        return self._cached_count
+        return self._available()
+
+    def _available(self, needed: int | None = None) -> int | float:
+        """Cache the exact count, or stop an exhaustive search once enough strings exist."""
+        if self._cached_count is not None:
+            return self._cached_count
+        nodes = _counted_sequence(self._parsed)
+        counter = _Counter(self._parser)
+        total = counter.count(nodes)
+        if total != math.inf and _output_shape(nodes, self._parser)[1]:
+            if counter.has_backrefs:
+                total = _Enumerator(self._parser, self._parser.max_repeat).count_backrefs(nodes, needed)
+                if needed is not None and total >= needed:
+                    return total
+            else:
+                total = _DistinctCounter(self._parser).count(nodes)
+        self._cached_count = total
+        return total
 
     def enumerate(self, *, limit: int | None = None) -> Iterator[str]:
         """
@@ -521,8 +738,8 @@ class StringGen:
         if limit is not None and limit < 1:
             raise ValueError(f"limit must be >= 1, got {limit}")
         effective_limit = limit if limit is not None else self._parser.max_repeat
-        enumerator = _Enumerator(self._parser.categories, self._parser.printable, effective_limit)
-        yield from enumerator.enumerate(parse.parse(self._pattern.pattern))  # ty: ignore[invalid-argument-type]
+        enumerator = _Enumerator(self._parser, effective_limit)
+        yield from enumerator.enumerate(self._parsed)
 
     def stream(self, count: int) -> Iterator[str]:
         r"""
@@ -573,7 +790,9 @@ class StringGen:
             raise ValueError(f"count must be >= 0, got {count}")
         if max_iteration < count:
             raise ValueError(f"max_iteration ({max_iteration}) must be >= count ({count})")
-        available = self.count()
+        if count == 0:
+            return set()
+        available = self._available(needed=count) if type(self) is StringGen else self.count()
         if available != math.inf and count > available:
             raise ValueError(f"Cannot generate {count} unique strings: pattern can only produce {available}")
         values = set()

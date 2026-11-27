@@ -18,6 +18,8 @@
 | Lookahead | `(?=...)` | `(?=prefix)` |
 | Negative lookahead | `(?!...)` | `(?!skip)` |
 
+When you pass a compiled `re.Pattern`, parsing respects `re.VERBOSE` whitespace and comment rules in `render()`, `count()`, and `enumerate()`.
+
 ## Limitations
 
 - **Unbounded quantifiers capped** — `*`, `+`, and `{n,}` default to 100 repetitions (configurable via `max_repeat` or `configure()`)

@@ -6,6 +6,7 @@ import re
 import string
 from collections.abc import Callable, Generator, Iterator
 from itertools import islice
+from unittest.mock import patch
 
 import pytest
 
@@ -21,9 +22,9 @@ from string_gen import (
 )
 from string_gen.alphabets import CJK
 from string_gen.generator import (
-    _DEFAULT_CATEGORIES,
     _DEFAULT_MAX_REPEAT,
     OPCODES,
+    _chars_in_class,
     _config,
     _Counter,
     _Enumerator,
@@ -69,6 +70,38 @@ def test_support_pattern():
     gen = StringGen(pattern)
     value = gen.render()
     assert gen.pattern.match(value)
+
+
+def test_reuse_parsed_pattern_and_class_across_methods():
+    pattern = re.compile("[a-cb-d]{2}  # two letters", re.VERBOSE)
+    with (
+        patch("string_gen.generator._chars_in_class", wraps=_chars_in_class) as expand_class,
+        patch.object(parse, "parse", wraps=parse.parse) as parse_pattern,
+    ):
+        gen = StringGen(pattern, seed=42)
+        parse_pattern.assert_not_called()
+        assert gen.count() == 16
+        assert list(gen.enumerate()) == [a + b for a in "abcd" for b in "abcd"]
+        values = gen.render_list(10)
+        assert all(pattern.fullmatch(s) for s in values)
+        gen.seed(42)
+        assert list(gen.stream(10)) == values
+        parse_pattern.assert_called_once()
+        expand_class.assert_called_once()
+
+
+def test_seeded_output_preserves_class_order_and_weights():
+    gen = StringGen(r"([a-cb-d0-2\d_])\1[^xy\s]", seed=42)
+    assert gen.render_list(6) == ["bb$", "22@", "112", "bbw", "88,", "99W"]
+
+
+def test_failed_render_discards_partial_captures():
+    gen = StringGen(r"(?:(a)(?(1)x|y)|b\1)", seed=1)
+    with pytest.raises(StringGenError, match="GROUPREF_EXISTS"):
+        gen.render()
+    gen.seed(0)
+    with pytest.raises(StringGenError, match="GROUPREF"):
+        gen.render()
 
 
 def test_support_bytes():
@@ -951,7 +984,26 @@ class TestCount:
     def test_finite_count(self, regex: str, expected: int):
         assert StringGen(regex).count() == expected
 
-    @pytest.mark.parametrize("regex", (r"\d+", r"\d*", r"\w{3,}"))
+    @pytest.mark.parametrize(
+        ("regex", "expected"),
+        (
+            (r"[ab]{0,10000}", (1 << 10001) - 1),
+            (r"[abc]{997,1000}?", sum(3**k for k in range(997, 1001))),
+            (r"[ab]{0}", 1),
+            (r"a{3,10000}", 9998),
+            (r"[^\s\S]{0,3}", 1),
+            (r"[^\s\S]{1,3}", 0),
+            (r"(?:a*){0}", 1),
+            (r"(?:a*){0,1}", math.inf),
+        ),
+    )
+    def test_repeat_count_boundaries(self, regex: str, expected: int | float):
+        count = StringGen(regex).count()
+        assert count == expected
+        if expected != math.inf:
+            assert isinstance(count, int)
+
+    @pytest.mark.parametrize("regex", (r"\d+", r"\d*", r"\w{3,}", r"[ab]{2000}|c*", r"c*|[ab]{2000}"))
     def test_infinite_count(self, regex: str):
         assert StringGen(regex).count() == math.inf
 
@@ -960,6 +1012,58 @@ class TestCount:
         first = gen.count()
         second = gen.count()
         assert first == second == 26
+
+    def test_large_overlapping_languages(self):
+        gen = StringGen(r"[ab]{0,32}[ab]{0,32}")
+        assert gen.count() == 2**65 - 1
+
+    def test_disjoint_branches_with_large_capture(self):
+        gen = StringGen(r"(ab|cd)([01]{64})\2")
+        with patch.object(StringGen, "enumerate", side_effect=AssertionError("unexpected enumeration")):
+            assert gen.count() == 2**65
+
+    def test_repeated_references_to_fixed_width_capture(self):
+        with patch.object(StringGen, "enumerate", side_effect=AssertionError("unexpected enumeration")):
+            assert StringGen(r"([ab]{64})\1\1").count() == 2**64
+
+    @pytest.mark.parametrize(
+        ("regex", "expected"),
+        (
+            (r"([ab]{64})\1a?a?", 3 * 2**64),
+            (r"([ab]{63})(?:\1[ab]|[ab]\1)", 2**65 - 2),
+            (r"(([ab]{0,10000})\2)\1", (1 << 10001) - 1),
+        ),
+    )
+    def test_symbolic_count_of_large_backreferences(self, regex: str, expected: int):
+        with patch.object(StringGen, "enumerate", side_effect=AssertionError("unexpected enumeration")):
+            assert StringGen(regex).count() == expected
+
+    @pytest.mark.parametrize(
+        "regex",
+        (
+            r"([01])\1(?:a[ab]|[ab]a|[ab][ab])",
+            r"([01])\1(?:[ab][ab]|a[ab])",
+            r"([ab])(?:\1x|\1y|[ab]x)",
+            r"([αβ])(?:\1\w|\w\1)",
+            r"(?:(a)|(b)){2}(?:\1\2|\2\1)",
+            r"([ab])(?:\1[^\s\S]|[ab]\1)",
+        ),
+    )
+    def test_symbolic_union_matches_enumeration(self, regex: str):
+        gen = StringGen(regex, alphabet="αβα")
+        assert gen.count() == len(set(gen.enumerate()))
+
+    def test_delimited_repeat_counts(self):
+        short = sum(64**n for n in range(20, 41))
+        long = sum(64**n for n in range(20, 61))
+        with patch("string_gen.generator._DistinctCounter.count", side_effect=AssertionError("unexpected overlap")):
+            assert StringGen(patterns.JWT_LIKE).count() == short * long * short
+
+    @pytest.mark.parametrize("regex", (r"[ab]{0,2}a[ab]{0,2}", r"([ab])?a?\1\1"))
+    def test_ambiguous_boundaries(self, regex: str):
+        gen = StringGen(regex)
+        outputs = list(gen.enumerate())
+        assert gen.count() == len(outputs) == len(set(outputs))
 
     def test_count_custom_alphabet(self):
         gen = StringGen(r"\w", alphabet="abc")
@@ -995,18 +1099,18 @@ class TestCount:
         assert gen.count() == len(printable - {"\n"})
 
     def test_count_unsupported_opcode(self):
-        counter = _Counter(_DEFAULT_CATEGORIES, string.printable)
+        counter = _Counter(_Parser())
         with pytest.raises(StringGenError, match="Unsupported opcode"):
             counter._node((999, None))  # noqa: SLF001
 
     def test_count_repeat_inner_zero(self):
-        counter = _Counter(_DEFAULT_CATEGORIES, string.printable)
+        counter = _Counter(_Parser())
         inner_pattern = [(parse.IN, [])]
         result = counter._count_repeat((1, 3, inner_pattern))  # noqa: SLF001
         assert result == 0
 
     def test_count_repeat_inner_infinite_bounded(self):
-        counter = _Counter(_DEFAULT_CATEGORIES, string.printable)
+        counter = _Counter(_Parser())
         inner_pattern = [(parse.MAX_REPEAT, (1, parse.MAXREPEAT, [(parse.LITERAL, 97)]))]
         result = counter._count_repeat((1, 3, inner_pattern))  # noqa: SLF001
         assert result == math.inf
@@ -1044,6 +1148,40 @@ class TestEnumerate:
 
     def test_sequence(self):
         assert list(StringGen(r"[ab][12]").enumerate()) == ["a1", "a2", "b1", "b2"]
+
+    def test_long_sequence_preserves_order_and_uniqueness(self):
+        prefix = "xy" * 600
+        gen = StringGen(prefix + "a?a?")
+        assert list(gen.enumerate()) == [prefix, prefix + "a", prefix + "aa"]
+
+    def test_long_fixed_repeat(self):
+        assert list(StringGen("a{1200}").enumerate()) == ["a" * 1200]
+
+    def test_deep_parsed_pattern(self):
+        # Exercise the walker independently of the standard library's regex parser.
+        nodes = [(parse.LITERAL, ord("x"))]
+        for _ in range(1200):
+            nodes = [(parse.MAX_REPEAT, (1, 1, nodes))]
+        assert list(_Enumerator(_Parser(), 100).enumerate(nodes)) == ["x"]
+
+    def test_long_repeat_yields_first_results_lazily(self):
+        gen = StringGen("[ab]{1200}")
+        values = gen.enumerate()
+        assert list(islice(values, 3)) == ["a" * 1200, "a" * 1199 + "b", "a" * 1198 + "ba"]
+        assert next(gen.enumerate()) == "a" * 1200
+        assert next(values) == "a" * 1198 + "bb"
+
+    def test_nested_repeated_captures(self):
+        regex = r"(([ab])\2){2}\1\2"
+        values = list(StringGen(regex).enumerate())
+        assert values == ["aaaaaaa", "aabbbbb", "bbaaaaa", "bbbbbbb"]
+        assert all(re.fullmatch(regex, value) for value in values)
+
+    def test_later_branch_is_evaluated_on_demand(self):
+        values = StringGen(r"(a)|(b)(?(1)c|d)").enumerate()
+        assert next(values) == "a"
+        with pytest.raises(StringGenError, match="Unsupported opcode"):
+            next(values)
 
     def test_repeat_range(self):
         assert list(StringGen(r"a{1,3}").enumerate()) == ["a", "aa", "aaa"]
@@ -1089,9 +1227,9 @@ class TestEnumerate:
         assert result == ["a", "b"]
 
     def test_enumerate_unsupported_opcode(self):
-        enumerator = _Enumerator(_DEFAULT_CATEGORIES, string.printable, 100)
+        enumerator = _Enumerator(_Parser(), 100)
         with pytest.raises(StringGenError, match="Unsupported opcode"):
-            list(enumerator._node((999, None), {}))  # noqa: SLF001
+            list(enumerator.enumerate([(999, None)]))
 
     def test_enumerate_negated_class(self):
         gen = StringGen(r"[^ab]", alphabet="abc")
@@ -1105,6 +1243,35 @@ class TestEnumerate:
             gen = StringGen(regex)
             assert len(list(gen.enumerate())) == gen.count(), f"Mismatch for {regex!r}"
 
+    @pytest.mark.parametrize(
+        ("regex", "expected"),
+        (
+            (r"a?a?", ["", "a", "aa"]),
+            (r"(?:a|a?)b", ["ab", "b"]),
+            (r"(?:a?){2}", ["", "a", "aa"]),
+            (r"(?:a?)?", ["", "a"]),
+            (r"(?:){0,2}", [""]),
+            (r"(?=a?)a?", ["", "a", "aa"]),
+            (r"(a?)(a?)\1", ["", "a", "aa", "aaa"]),
+            (r"(a?a?)\1", ["", "aa", "aaaa"]),
+        ),
+    )
+    def test_distinct_outputs(self, regex: str, expected: list[str]):
+        gen = StringGen(regex)
+        assert gen.count() == len(expected)
+        assert list(gen.enumerate()) == expected
+
+    def test_distinct_outputs_with_limit(self):
+        gen = StringGen(r"a*a?")
+        assert gen.count() == math.inf
+        assert list(gen.enumerate(limit=2)) == ["", "a", "aa", "aaa"]
+
+    @pytest.mark.parametrize("regex", (".", "[^a]"))
+    def test_distinct_outputs_with_repeated_alphabet(self, regex: str):
+        gen = StringGen(regex, alphabet="aab")
+        values = list(gen.enumerate())
+        assert len(values) == len(set(values)) == gen.count()
+
 
 # --- render_set early error tests ---
 
@@ -1116,6 +1283,43 @@ class TestRenderSetEarlyError:
         with pytest.raises(ValueError, match=r"Cannot generate 3 unique strings"):
             StringGen(r"[01]").render_set(3)
 
+    def test_overlapping_optionals_fail_before_sampling(self):
+        gen = StringGen(r"a?a?", seed=42)
+        with (
+            patch.object(StringGen, "render", side_effect=AssertionError("unexpected draw")),
+            pytest.raises(ValueError, match="Cannot generate 4 unique strings: pattern can only produce 3"),
+        ):
+            gen.render_set(4)
+        assert gen.render_set(3) == {"", "a", "aa"}
+
+    def test_small_set_does_not_exhaust_ambiguous_backreferences(self):
+        gen = StringGen(r"([ab]{4})\1a?a?", seed=42)
+        with patch.object(StringGen, "enumerate", side_effect=AssertionError("unexpected enumeration")):
+            assert len(gen.render_set(2)) == 2
+        assert gen.count() == 16 * 3
+
+    def test_overlapping_backreferences_fail_before_sampling(self):
+        gen = StringGen(r"([ab])(?:\1[ab]|[ab]\1)")
+        with (
+            patch.object(StringGen, "render", side_effect=AssertionError("unexpected draw")),
+            pytest.raises(ValueError, match="pattern can only produce 6"),
+        ):
+            gen.render_set(7)
+        assert gen.count() == 6
+
     def test_render_set_exact_available(self):
         result = StringGen(r"[01]").render_set(2)
         assert result == {"0", "1"}
+
+    def test_render_set_respects_overridden_count(self):
+        class SingleValue(StringGen):
+            """Generate one value from a broader base pattern."""
+
+            def render(self) -> str:
+                return "a"
+
+            def count(self) -> int:
+                return 1
+
+        with pytest.raises(ValueError, match="pattern can only produce 1"):
+            SingleValue("[ab]").render_set(2)
