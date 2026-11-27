@@ -4,7 +4,7 @@ description = "Generate random strings from regex patterns"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{ name = "tolstislon", email = "tolstislon@gmail.com" }]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 keywords = ["testing", "test-data", "test-data-generator", "string", "regex"]
 dynamic = ["version"]
 classifiers = [
@@ -12,13 +12,12 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Software Development :: Testing",
@@ -65,11 +64,11 @@ docs = [
 ]
 
 [tool.ty.environment]
-python-version = "3.8"
+python-version = "3.10"
 
 [tool.ruff]
 line-length = 120
-target-version = "py38"
+target-version = "py310"
 exclude = [".git", ".pytest_cache", ".idea", ".github"]
 
 [tool.ruff.lint]

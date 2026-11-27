@@ -4,8 +4,8 @@ import math
 import random
 import re
 import string
+from collections.abc import Callable, Generator, Iterator
 from itertools import islice
-from typing import Callable, Generator, Iterator, Union
 
 import pytest
 
@@ -28,12 +28,8 @@ from string_gen.generator import (
     _Counter,
     _Enumerator,
     _Parser,
+    parse,
 )
-
-try:
-    import re._parser as parse  # ty: ignore[unresolved-import]
-except ImportError:  # pragma: no cover
-    import sre_parse as parse
 
 REGEX = (
     r"^\d{5}$",
@@ -190,13 +186,13 @@ def test_set_seed_method():
 
 @pytest.mark.parametrize("regex", (r"\d", rb"\d"))
 @pytest.mark.parametrize("mode", ("str", "string_gen", "pattern"))
-def test_equal(mode: str, regex: Union[str, bytes]):
+def test_equal(mode: str, regex: str | bytes):
     new_regex = regex
     if mode == "pattern":
         new_regex = re.compile(regex)
     elif mode == "string_gen":
-        new_regex = StringGen(regex)  # ty: ignore[invalid-argument-type]
-    assert StringGen(regex) == new_regex  # ty: ignore[invalid-argument-type]
+        new_regex = StringGen(regex)
+    assert StringGen(regex) == new_regex
 
 
 def test_equal_error():
@@ -207,12 +203,12 @@ def test_equal_error():
 
 @pytest.mark.parametrize("regex", (r"\d", rb"\d"))
 @pytest.mark.parametrize("mode", ("str", "string_gen", "pattern"))
-def test_not_equal(mode: str, regex: Union[str, bytes]):
+def test_not_equal(mode: str, regex: str | bytes):
     new_regex = regex
     if mode == "pattern":
         new_regex = re.compile(regex)
     elif mode == "string_gen":
-        new_regex = StringGen(regex)  # ty: ignore[invalid-argument-type]
+        new_regex = StringGen(regex)
     assert StringGen(r"\w") != new_regex
 
 
@@ -299,7 +295,7 @@ def test_render_set_negative_count():
 
 
 @pytest.mark.parametrize("seed", (42, 3.14, "hello", b"bytes", bytearray(b"ba")))
-def test_seed_types(seed: Union[int, float, str, bytes, bytearray]):
+def test_seed_types(seed: int | float | str | bytes | bytearray):
     gen1 = StringGen(r"\d{10}", seed=seed)
     gen2 = StringGen(r"\d{10}", seed=seed)
     assert gen1.render_list(count=5) == gen2.render_list(count=5)

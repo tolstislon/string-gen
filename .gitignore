@@ -159,3 +159,6 @@ cython_debug/
 
 # setuptools_scm
 string_gen/__version__.py
+
+# Local project instructions
+/AGENTS.md

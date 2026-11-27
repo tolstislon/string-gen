@@ -21,6 +21,8 @@ Generate random strings from regular expression patterns.
 
 ## Installation
 
+Requires Python 3.10 or newer.
+
 ```bash
 pip install string-gen
 ```
@@ -31,21 +33,23 @@ pip install string-gen
 from string_gen import StringGen
 
 # Basic generation
-gen = StringGen(r'(A|B)\d{4}(\.|-)\d{1}')
+gen = StringGen(r"(A|B)\d{4}(\.|-)\d{1}")
 gen.render()  # e.g. 'B9954.4'
 
 # List of strings
-gen = StringGen(r'[A-Z]{3}-\d{3}')
+gen = StringGen(r"[A-Z]{3}-\d{3}")
 gen.render_list(5)  # e.g. ['XKR-839', 'BNQ-271', 'JYL-054', 'WMT-692', 'AFZ-418']
 
 # Built-in patterns
 from string_gen.patterns import UUID4, IPV4
+
 StringGen(UUID4).render()  # e.g. '52aabe4b-01fa-4b33-8976-b53b09f49e72'
-StringGen(IPV4).render()   # e.g. '192.168.1.42'
+StringGen(IPV4).render()  # e.g. '192.168.1.42'
 
 # Custom alphabets
 from string_gen.alphabets import CYRILLIC
-StringGen(r'\w{10}', alphabet=CYRILLIC).render()  # e.g. 'ёЩкРблнЫйМ'
+
+StringGen(r"\w{10}", alphabet=CYRILLIC).render()  # e.g. 'ёЩкРблнЫйМ'
 ```
 
 For full documentation visit **[tolstislon.github.io/string-gen](https://tolstislon.github.io/string-gen/)**.
@@ -66,7 +70,7 @@ Contributions are very welcome. You might want to:
 
 ### Getting started
 
-- Python 3.8+
+- Python 3.10+
 - [uv](https://docs.astral.sh/uv/)
 
 1. Clone the repository

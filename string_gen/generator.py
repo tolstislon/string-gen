@@ -10,15 +10,16 @@ import math
 import random
 import re
 import string
+from collections.abc import Callable, Iterator, Sequence
 from itertools import chain
-from typing import Any, AnyStr, Callable, Dict, Final, Iterator, List, Sequence, Set, Tuple, Union
+from typing import Any, Final
 
 try:
-    import re._parser as parse  # ty: ignore[unresolved-import]
+    import re._parser as parse  # ty: ignore[import-not-found]
 except ImportError:  # pragma: no cover
     import sre_parse as parse
 
-SeedType = Union[int, float, str, bytes, bytearray, None]
+SeedType = int | float | str | bytes | bytearray | None
 
 
 class StringGenError(Exception):
@@ -32,7 +33,7 @@ class StringGenPatternError(StringGenError):
     :param pattern: The pattern that failed to compile.
     """
 
-    def __init__(self, pattern: Union[re.Pattern, AnyStr], *args) -> None:  # noqa: ANN002
+    def __init__(self, pattern: re.Pattern | str | bytes, *args) -> None:  # noqa: ANN002
         super().__init__(f"Invalid pattern: {pattern!r}", *args)
 
 
@@ -47,7 +48,7 @@ class StringGenMaxIterationsReachedError(StringGenError):
         super().__init__(f"Max iterations reached: {max_iterations!r}", *args)
 
 
-def _build_categories(alphabet: str, printable: str) -> Dict[int, str]:
+def _build_categories(alphabet: str, printable: str) -> dict[int, str]:
     """
     Build a category lookup table for the given alphabet.
 
@@ -66,10 +67,10 @@ def _build_categories(alphabet: str, printable: str) -> Dict[int, str]:
 
 
 # Default category table built from ASCII letters.
-_DEFAULT_CATEGORIES: Final[Dict[int, str]] = _build_categories(string.ascii_letters, string.printable)
+_DEFAULT_CATEGORIES: Final[dict[int, str]] = _build_categories(string.ascii_letters, string.printable)
 
 
-def _chars_in_class(items: List[Tuple[int, Any]], categories: Dict[int, str], printable: str) -> List[str]:
+def _chars_in_class(items: list[tuple[int, Any]], categories: dict[int, str], printable: str) -> list[str]:
     """
     Collect all characters matched by a character class (``[...]``).
 
@@ -78,7 +79,7 @@ def _chars_in_class(items: List[Tuple[int, Any]], categories: Dict[int, str], pr
     :param printable: Full printable character set.
     """
     negate = False
-    chars: List[str] = []
+    chars: list[str] = []
     for op, value in items:
         if op == parse.NEGATE:
             negate = True
@@ -95,10 +96,10 @@ def _chars_in_class(items: List[Tuple[int, Any]], categories: Dict[int, str], pr
 
 _DEFAULT_MAX_REPEAT: Final[int] = 100
 
-_config: Dict[str, Any] = {"max_repeat": _DEFAULT_MAX_REPEAT, "alphabet": None}
+_config: dict[str, Any] = {"max_repeat": _DEFAULT_MAX_REPEAT, "alphabet": None}
 
 
-def configure(*, max_repeat: Union[int, None] = None, alphabet: Union[str, None] = None) -> None:
+def configure(*, max_repeat: int | None = None, alphabet: str | None = None) -> None:
     """
     Configure global defaults for new ``StringGen`` instances.
 
@@ -128,7 +129,7 @@ def reset() -> None:
     _config["alphabet"] = None
 
 
-def _get_bytes(val: AnyStr) -> bytes:
+def _get_bytes(val: str | bytes) -> bytes:
     """
     Convert a string or bytes value to bytes.
 
@@ -149,9 +150,9 @@ class _Parser:
         seed: SeedType = None,
         *,
         max_repeat: int = _DEFAULT_MAX_REPEAT,
-        alphabet: Union[str, None] = None,
+        alphabet: str | None = None,
     ) -> None:
-        self.cache: Dict[str, Any] = {}
+        self.cache: dict[str, Any] = {}
         self.rand = random.Random(bytes(seed) if isinstance(seed, bytearray) else seed)
         self.max_repeat = max_repeat
         if alphabet is None:
@@ -162,7 +163,7 @@ class _Parser:
             self.printable = word + string.punctuation + string.whitespace
             self.categories = _build_categories(alphabet, self.printable)
 
-    def repeat(self, start_range: int, end_range: int, value: List[Any]) -> str:
+    def repeat(self, start_range: int, end_range: int, value: list[Any]) -> str:
         """
         Generate a repeated sequence of characters.
 
@@ -188,7 +189,7 @@ class _Parser:
             self.cache[value[0]] = result
         return result
 
-    def in_state(self, value: List[Any]) -> Any:
+    def in_state(self, value: list[Any]) -> Any:
         """
         Pick a random character from a character class (``[...]``).
 
@@ -199,7 +200,7 @@ class _Parser:
             candidates = sorted(set(self.printable).difference(candidates[1:]))
         return self.rand.choice(candidates)
 
-    def state(self, state: Tuple[int, Any]) -> Any:
+    def state(self, state: tuple[int, Any]) -> Any:
         """
         Dispatch a single parsed opcode to its handler.
 
@@ -224,7 +225,7 @@ class _Parser:
 
 
 # Dispatch table mapping sre_parse opcodes to handler functions.
-OpcodesDict = Dict[int, Callable[[_Parser, Any], Any]]
+OpcodesDict = dict[int, Callable[[_Parser, Any], Any]]
 
 OPCODES: Final[OpcodesDict] = {
     parse.LITERAL: lambda _, x: chr(x),
@@ -250,24 +251,24 @@ class _Counter:
 
     __slots__ = ("categories", "printable")
 
-    def __init__(self, categories: Dict[int, str], printable: str) -> None:
+    def __init__(self, categories: dict[int, str], printable: str) -> None:
         self.categories = categories
         self.printable = printable
 
-    def count(self, parsed: Sequence[Tuple[int, Any]]) -> Union[int, float]:
+    def count(self, parsed: Sequence[tuple[int, Any]]) -> int | float:
         """
         Return the total number of unique strings for a parsed sequence.
 
         :param parsed: Sequence of ``(opcode, value)`` tuples from the regex AST.
         """
-        result: Union[int, float] = 1
+        result: int | float = 1
         for node in parsed:
             result *= self._node(node)
             if result == math.inf:
                 return math.inf
         return result
 
-    def _node(self, state: Tuple[int, Any]) -> Union[int, float]:  # noqa: PLR0911
+    def _node(self, state: tuple[int, Any]) -> int | float:  # noqa: PLR0911
         opcode, value = state
         if opcode == parse.LITERAL:
             return 1
@@ -293,7 +294,7 @@ class _Counter:
             return self._count_repeat(value)
         raise StringGenError(f"Unsupported opcode: {opcode!r}")
 
-    def _count_repeat(self, value: Tuple[int, int, List[Any]]) -> Union[int, float]:
+    def _count_repeat(self, value: tuple[int, int, list[Any]]) -> int | float:
         start, end, pattern = value
         if end >= parse.MAXREPEAT:
             return math.inf
@@ -302,7 +303,7 @@ class _Counter:
             return 0
         if inner == math.inf:
             return math.inf if start > 0 or end > 0 else 1
-        total: Union[int, float] = 0
+        total: int | float = 0
         for k in range(start, end + 1):
             total += inner**k
         return total
@@ -313,12 +314,12 @@ class _Enumerator:
 
     __slots__ = ("categories", "max_repeat", "printable")
 
-    def __init__(self, categories: Dict[int, str], printable: str, max_repeat: int) -> None:
+    def __init__(self, categories: dict[int, str], printable: str, max_repeat: int) -> None:
         self.categories = categories
         self.printable = printable
         self.max_repeat = max_repeat
 
-    def enumerate(self, parsed: Sequence[Tuple[int, Any]]) -> Iterator[str]:
+    def enumerate(self, parsed: Sequence[tuple[int, Any]]) -> Iterator[str]:
         """
         Yield all unique strings for a parsed sequence.
 
@@ -327,7 +328,7 @@ class _Enumerator:
         for s, _ in self._sequence(list(parsed), {}):
             yield s
 
-    def _sequence(self, nodes: List[Tuple[int, Any]], bindings: Dict[int, str]) -> Iterator[Tuple[str, Dict[int, str]]]:
+    def _sequence(self, nodes: list[tuple[int, Any]], bindings: dict[int, str]) -> Iterator[tuple[str, dict[int, str]]]:
         if not nodes:
             yield "", bindings
             return
@@ -337,8 +338,8 @@ class _Enumerator:
                 yield prefix + suffix, b2
 
     def _node(  # noqa: PLR0912
-        self, state: Tuple[int, Any], bindings: Dict[int, str]
-    ) -> Iterator[Tuple[str, Dict[int, str]]]:
+        self, state: tuple[int, Any], bindings: dict[int, str]
+    ) -> Iterator[tuple[str, dict[int, str]]]:
         opcode, value = state
         if opcode == parse.LITERAL:
             yield chr(value), bindings
@@ -374,16 +375,16 @@ class _Enumerator:
             raise StringGenError(f"Unsupported opcode: {opcode!r}")
 
     def _repeat(
-        self, value: Tuple[int, int, List[Any]], bindings: Dict[int, str]
-    ) -> Iterator[Tuple[str, Dict[int, str]]]:
+        self, value: tuple[int, int, list[Any]], bindings: dict[int, str]
+    ) -> Iterator[tuple[str, dict[int, str]]]:
         start, end, pattern = value
         upper = end if end < parse.MAXREPEAT else max(start, self.max_repeat)
         for k in range(start, upper + 1):
             yield from self._repeat_n(list(pattern), k, bindings)
 
     def _repeat_n(
-        self, pattern: List[Tuple[int, Any]], n: int, bindings: Dict[int, str]
-    ) -> Iterator[Tuple[str, Dict[int, str]]]:
+        self, pattern: list[tuple[int, Any]], n: int, bindings: dict[int, str]
+    ) -> Iterator[tuple[str, dict[int, str]]]:
         if n == 0:
             yield "", bindings
             return
@@ -416,11 +417,11 @@ class StringGen:
 
     def __init__(
         self,
-        pattern: Union[re.Pattern, AnyStr],
+        pattern: re.Pattern | str | bytes,
         seed: SeedType = None,
         *,
-        max_repeat: Union[int, None] = None,
-        alphabet: Union[str, None] = None,
+        max_repeat: int | None = None,
+        alphabet: str | None = None,
     ) -> None:
         try:
             self._pattern: re.Pattern = re.compile(pattern)
@@ -431,14 +432,14 @@ class StringGen:
         effective = max_repeat if max_repeat is not None else _config["max_repeat"]
         effective_alphabet = alphabet if alphabet is not None else _config["alphabet"]
         self._parser = _Parser(seed, max_repeat=effective, alphabet=effective_alphabet)
-        self._cached_count: Union[int, float, None] = None
+        self._cached_count: int | float | None = None
 
     @property
     def pattern(self) -> re.Pattern:
         """Compiled ``re.Pattern`` object used for generation."""
         return self._pattern
 
-    def __get_value(self, value: Any) -> re.Pattern:
+    def __get_value(self, value: object) -> re.Pattern:
         if isinstance(value, type(self)):
             return value._pattern  # noqa: SLF001
         if isinstance(value, re.Pattern):
@@ -447,7 +448,7 @@ class StringGen:
             return re.compile(value)
         raise TypeError(f"Unexpected type {type(value)!r} The only supported: str, StringGen, re.Pattern")
 
-    def __eq__(self, other: Union[re.Pattern, "StringGen", AnyStr]) -> bool:
+    def __eq__(self, other: object) -> bool:
         return self._pattern == self.__get_value(other)
 
     def __bool__(self) -> bool:
@@ -494,7 +495,7 @@ class StringGen:
         """Produce a single random string matching the pattern."""
         return self._parser.value(self._pattern)
 
-    def count(self) -> Union[int, float]:
+    def count(self) -> int | float:
         """
         Return the number of unique strings the pattern can produce.
 
@@ -506,7 +507,7 @@ class StringGen:
             self._cached_count = counter.count(parse.parse(self._pattern.pattern))  # ty: ignore[invalid-argument-type]
         return self._cached_count
 
-    def enumerate(self, *, limit: Union[int, None] = None) -> Iterator[str]:
+    def enumerate(self, *, limit: int | None = None) -> Iterator[str]:
         """
         Yield all unique strings the pattern can produce.
 
@@ -545,7 +546,7 @@ class StringGen:
         for _ in range(count):
             yield self.render()
 
-    def render_list(self, count: int) -> List[str]:
+    def render_list(self, count: int) -> list[str]:
         """
         Produce a list of random strings matching the pattern.
 
@@ -555,7 +556,7 @@ class StringGen:
             raise ValueError(f"count must be >= 0, got {count}")
         return [self.render() for _ in range(count)]
 
-    def render_set(self, count: int, *, max_iteration: int = 100_000) -> Set[str]:
+    def render_set(self, count: int, *, max_iteration: int = 100_000) -> set[str]:
         """
         Produce a set of unique random strings matching the pattern.
 

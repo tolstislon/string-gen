@@ -8,8 +8,8 @@ The `string_gen.patterns` module provides ready-to-use regex patterns for common
 from string_gen import StringGen
 from string_gen.patterns import UUID4, IPV4, SEMVER
 
-StringGen(UUID4).render()   # e.g. '52aabe4b-01fa-4b33-8976-b53b09f49e72'
-StringGen(IPV4).render()    # e.g. '192.168.1.42'
+StringGen(UUID4).render()  # e.g. '52aabe4b-01fa-4b33-8976-b53b09f49e72'
+StringGen(IPV4).render()  # e.g. '192.168.1.42'
 StringGen(SEMVER).render()  # e.g. '2.14.3'
 ```
 

@@ -6,10 +6,10 @@ Combine presets with ``+`` to create mixed alphabets.
 """
 
 import string
-from typing import Final, Tuple
+from typing import Final
 
 
-def _ranges(*ranges: Tuple[int, int]) -> str:
+def _ranges(*ranges: tuple[int, int]) -> str:
     """Build a string from multiple Unicode code-point ranges."""
     return "".join(chr(c) for start, end in ranges for c in range(start, end))
 

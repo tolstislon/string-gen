@@ -15,10 +15,10 @@ pip install string-gen
 ```python
 from string_gen import StringGen
 
-gen = StringGen(r'(A|B)\d{4}(\.|-)\d{1}')
+gen = StringGen(r"(A|B)\d{4}(\.|-)\d{1}")
 print(gen.render())  # e.g. B9954.4
 
-gen = StringGen(r'[A-Z]{3}-\d{3}')
+gen = StringGen(r"[A-Z]{3}-\d{3}")
 print(gen.render_list(5))  # e.g. ['XKR-839', 'BNQ-271', 'JYL-054', 'WMT-692', 'AFZ-418']
 ```
 

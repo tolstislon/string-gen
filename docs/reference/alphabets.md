@@ -9,15 +9,15 @@ from string_gen import StringGen
 from string_gen.alphabets import CYRILLIC, GREEK, ASCII
 
 # Cyrillic word characters
-gen = StringGen(r'\w{10}', alphabet=CYRILLIC)
+gen = StringGen(r"\w{10}", alphabet=CYRILLIC)
 gen.render()  # e.g. 'ёЩкРблнЫйМ'
 
 # Mixed alphabets (combine with +)
-gen = StringGen(r'\w{10}', alphabet=CYRILLIC + ASCII)
+gen = StringGen(r"\w{10}", alphabet=CYRILLIC + ASCII)
 gen.render()  # mix of Cyrillic and Latin letters
 
 # Custom alphabet — any string of letters
-gen = StringGen(r'\w{5}', alphabet='αβγδε')
+gen = StringGen(r"\w{5}", alphabet="αβγδε")
 gen.render()  # e.g. 'γα3δ_'
 ```
 
